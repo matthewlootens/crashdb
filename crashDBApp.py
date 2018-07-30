@@ -7,17 +7,14 @@ from sqlalchemy.orm import Bundle
 from datetime import datetime, time
 import json
 import decimal
-import configparser
+from Config import Config
 
-with file.open(CONFIG_FILE) as f:
-    config = configparser.RawConfigParser()
-    config.read_file(f)
-
-# E_FILE = 'root:Light773@localhost:3306/crash'
-DATABASE_FILE = config[mysql][username] + 'root:Light773@localhost:3306/crash'
+CONFIG_FILE = 'settings.cfg'
+config = Config(CONFIG_FILE).get_config_settings()
+DATABASE_FILE = '%s:%s' % (config['mysql']['username'], config['mysql']['password'])
+DATABASE_FILE += '@localhost:3306/crash'
 app = Flask(__name__)
 CORS(app)
-columns = ['zip_code', 'borough']
 
 ####Helper Functions and Classes####
 def start_db_session(database_name):
@@ -89,14 +86,14 @@ def confirm_server_status():
 @app.route("/map")
 def get_list():
     """
-    Returns a list of JSONs of lat/lng for plotting on agoogle maps
+    Returns a list of JSONs of lat/lng for plotting on google maps
     request.args should contain: lat1, lng1, lat2, lng2
     and also a query term zip boolean
     """
     print(request.args)
     coords = request.args
 
-    nullZipFlag = request.args['zip']
+    show_only_non_zip = request.args['zip']
 
     query = session.query(Crash.unique_key, Crash.latitude, Crash.longitude)
     query = query.filter(Crash.latitude > float(coords['lat1'])).filter(Crash.latitude < float(coords['lat2']))
@@ -104,7 +101,7 @@ def get_list():
 
     # if the zipcode flag was set to True
     # include only crashes without a zip code
-    if nullZipFlag == 'True':
+    if show_only_non_zip == 'True':
         query = query.filter(Crash.zip_code < 1)
 
     results_list = [as_dict(result) for result in query.all()]
@@ -122,13 +119,7 @@ def get_years(query_object = None):
     else:
         return query_object.query(func.year(Crash.date)).distinct().all() # Need to rethink this.
 
-@app.route("/getcrash")
-def crash_id():
-    """
-    Returns relevant crash details of a particular crash
-    """
-
-@app.route("/api/filter_request")
+@app.route("/find_by_borough")
 def queryDatabase():
     """
     Handles requests for crash numbers and can take three query terms:
@@ -152,14 +143,14 @@ def queryDatabase():
     query = query.group_by(Crash.zip_code)
 
     # Debugging logging
-    print(request.args)
-    print(sum_bundle)
-    print(query.first())
+    # print(request.args)
+    # print(sum_bundle)
+    # print(query.first())
 
     results_list = [as_dict(result) for result in query.all()]
     return json.dumps(results_list, cls = SQLJSON)
 
-def parse_HTML_query(query_dictionary):
+def parse_HTML_query(query_dictionary, allowed_keys = ('zip_code', 'borough', 'year')):
     """
     query_dictionary: a dictionary, usually provided by flask's request.args; values are strings.
     returns the dictionary cleared of keys with an empty value, and
@@ -169,7 +160,6 @@ def parse_HTML_query(query_dictionary):
         * add a zero for zip_codes
     """
     cleaned_dictionary = {}
-    allowed_keys = ('zip_code', 'borough', 'year')
 
     for key, value in query_dictionary.items():
         assert key in allowed_keys
@@ -211,21 +201,6 @@ def get_date_range():
     session.query(func.min(Crash.date), func.max(Crash.date))[0]
     return
 
-def convert_to_POSIX_time(datetime_object):
-    """"
-    returns a float correpsonding to POSIX time
-    converts a dateime.date object to a datetime.datetime object
-    """
-    datetime_object = datetime.combine(datetime_object, datetime.min.time())
-    return datetime.timestamp(datetime_object)
-
-def generate_date_range(beginning_date, ending_date):
-    """
-    Takes in two strings as datesi self
-    Returns
-    """
-    pass
-
 def JSONify_data (query_object, field_list):
     """
     Returns a list of JSONs in string format for passing along to browser.
@@ -261,14 +236,7 @@ def num_by_zip():
     zip_codes = [{'zip': i[0], 'count': i[1]} for i in zip_codes]
     return json.dumps(zip_codes)
 
-def filter_by_year(query_object, year):
-    pass
-
-@app.route("/api/bx_numbers")
-def main_function():
-    return serialize(columns, get_crashes_by_borough('BRONX'))
-
-def serialize(columns, query_object):
+def serialize(query_object, columns = ['zip_code', 'borough']):
     serialized_data = []
     for entry in query_object:
         entry_dict = {}
@@ -279,5 +247,3 @@ def serialize(columns, query_object):
 
 ######Boilerplate EOF material###########
 session = start_db_session(DATABASE_FILE)
-# if __name__ == "__main__":
-#     app.run(port = 8000, debug = True)
