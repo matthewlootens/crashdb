@@ -107,17 +107,13 @@ def get_list():
     results_list = [as_dict(result) for result in query.all()]
     return json.dumps(results_list, cls = SQLJSON)
 
-# marker_attributes = ["id", "name", "address", "lat", "lng", "type"]
-@app.route("/years")
-def get_years(query_object = None):
-    """
-    Returns an ordered list of years (as JSONs {"year": 2017})
-    """
-    if not query_object:
-        year_query = session.query(func.year(Crash.date)).distinct().all() # Need to add order by year.
-        return json.dumps([{'year': i[0]} for i in year_query])
-    else:
-        return query_object.query(func.year(Crash.date)).distinct().all() # Need to rethink this.
+# @app.route("/years")
+# def get_years(query_object = None):
+#     """
+#     Returns an ordered list of years (as JSONs {"year": 2017})
+#     """
+#     year_query = session.query(func.year(Crash.date)).distinct().all()
+#     return json.dumps([{'year': i[0]} for i in year_query])
 
 @app.route("/find_by_borough")
 def queryDatabase():
@@ -193,57 +189,59 @@ def generate_column_bundle(field_list, schema, bundle_name, SQL_function = None)
                         for field in instrumentalized_field_list]
         return Bundle(bundle_name, *function_list)
 
-@app.route("/date_range")
-def get_date_range():
-    """
-    Returns the min and max of dataset in a tuple of datetime.date objects
-    """
-    session.query(func.min(Crash.date), func.max(Crash.date))[0]
-    return
+#####
+#Extra functions to expand later
+####
+# @app.route("/date_range")
+# def get_date_range():
+#     """
+#     Returns the min and max of dataset in a tuple of datetime.date objects
+#     """
+#     session.query(func.min(Crash.date), func.max(Crash.date))[0]
+#     return
 
-def JSONify_data (query_object, field_list):
-    """
-    Returns a list of JSONs in string format for passing along to browser.
-    """
-    #Consider replacing this function with a list comprehension.
-    #[{'borough': item[0], 'victims': {display_fields2[i]._label: item[1][i]}} for item in result for i in range(8)]
-    list = []
-    for item in query_object:
-        dictionary = {}#This doesn't gaurenteee order.  So probably need to in ordered dictionary?
-        dictionary['borough'] = item[0]
-        dictionary['data'] = {}
-        for i in range(8):
-            dictionary['data'][display_fields2[i]._label] = item[1][i]
-        list.append(dictionary)
+#def JSONify_data (query_object, field_list):
+#    """
+#    Returns a list of JSONs in string format for passing along to browser.
+#    """
+#    #Consider replacing this function with a list comprehension.
+#    #[{'borough': item[0], 'victims': {display_fields2[i]._label: item[1][i]}} for item in result for i in range(8)]
+#    list = []
+#    for item in query_object:
+#        dictionary = {}#This doesn't gaurenteee order.  So probably need to in ordered dictionary?
+#        dictionary['borough'] = item[0]
+#        dictionary['data'] = {}
+#        for i in range(8):
+#            dictionary['data'][display_fields2[i]._label] = item[1][i]
+#        list.append(dictionary)
 
-    #try also flask.jsonify(sql return object)
-    display_fields3 = [func.sum(Crash.number_of_persons_injured), func.sum(Crash.number_of_persons_killed),
-    func.sum(Crash.number_of_pedestrians_injured), func.sum(Crash.number_of_pedestrians_killed),
-    func.sum(Crash.number_of_cyclist_injured), func.sum(Crash.number_of_cyclist_killed),
-    func.sum(Crash.number_of_motorist_injured), func.sum(Crash.number_of_motorist_killed)]
+#    #try also flask.jsonify(sql return object)
+#    display_fields3 = [func.sum(Crash.number_of_persons_injured), func.sum(Crash.number_of_persons_killed),
+#    func.sum(Crash.number_of_pedestrians_injured), func.sum(Crash.number_of_pedestrians_killed),
+#    func.sum(Crash.number_of_cyclist_injured), func.sum(Crash.number_of_cyclist_killed),
+#    func.sum(Crash.number_of_motorist_injured), func.sum(Crash.number_of_motorist_killed)]
 
-    #Handles when only 'borough' has been selected, but not zip_code
-    if not query_search_items[zip_code]:
-        query_grouped_by_borough = session.group_by(query_search_items['borough'])
-        query_grouped_by_borough()
-    else:
-        pass
+#    #Handles when only 'borough' has been selected, but not zip_code
+#    if not query_search_items[zip_code]:
+#        query_grouped_by_borough = session.group_by(query_search_items['borough'])
+#        query_grouped_by_borough()
+#    else:
+#        pass
 
-def num_by_zip():
-    borough_name = request.args['borough']
-    zip_codes = session.query(Crash.zip_code, func.count())\
-        .filter(Crash.borough == borough_name).group_by(Crash.zip_code).all()
-    zip_codes = [{'zip': i[0], 'count': i[1]} for i in zip_codes]
-    return json.dumps(zip_codes)
+#def num_by_zip():
+#    borough_name = request.args['borough']
+#    zip_codes = session.query(Crash.zip_code, func.count())\
+#        .filter(Crash.borough == borough_name).group_by(Crash.zip_code).all()
+#    zip_codes = [{'zip': i[0], 'count': i[1]} for i in zip_codes]
+#    return json.dumps(zip_codes)
 
-def serialize(query_object, columns = ['zip_code', 'borough']):
-    serialized_data = []
-    for entry in query_object:
-        entry_dict = {}
-        for key in columns:
-            entry_dict[key] = getattr(entry, key)
-        serialized_data.append(entry_dict)
-    return serialized_data
+#def serialize(query_object, columns = ['zip_code', 'borough']):
+#    serialized_data = []
+#    for entry in query_object:
+#        entry_dict = {}
+#        for key in columns:
+#            entry_dict[key] = getattr(entry, key)
+#        serialized_data.append(entry_dict)
+#    return serialized_data
 
-######Boilerplate EOF material###########
 session = start_db_session(DATABASE_FILE)
